@@ -14,9 +14,7 @@ class YoomoneyController extends Controller
     }
 
     public function redirect(){
-
         return ['status'=>'true'];
-
     }
 
     public function notification(){
