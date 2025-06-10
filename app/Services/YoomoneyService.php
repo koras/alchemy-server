@@ -59,7 +59,7 @@ class YoomoneyService implements YoomoneyServiceInterface
         if (empty($params['token'])) {
             throw new \InvalidArgumentException('Payment token is required');
         }
-
+        // https://chatgpt.com/c/6848b8bf-a05c-8012-8bbc-3110d3803832
         $idempotenceKey = uniqid('', true);
         $paymentData = [
             'amount' => [
@@ -70,11 +70,14 @@ class YoomoneyService implements YoomoneyServiceInterface
             //    'payment_token' => Random::str(36),
             'confirmation' => [
                 // https://yookassa.ru/developers/payment-acceptance/getting-started/payment-process
+                //https://yookassa.ru/developers/payment-acceptance/getting-started/payment-methods
            //     'type' => 'redirect',
-                'type' => 'embedded',
+               // 'type' => 'embedded',
+                "type" =>  "mobile_application",
              //   'type' =>  'external',
          //       'locale' => 'ru_RU',
             //    'return_url' => $this->urlCallback,
+                "return_url"=> "yourapp://payment-return"
             ],
             'capture' => true,
             'description' => "Покупка {$params['count']} подсказок",
