@@ -73,11 +73,11 @@ class YoomoneyService implements YoomoneyServiceInterface
                 //https://yookassa.ru/developers/payment-acceptance/getting-started/payment-methods
            //     'type' => 'redirect',
                // 'type' => 'embedded',
-                "type" =>  "mobile_application",
-             //   'type' =>  'external',
+                'type' => 'redirect',
+                //   'type' =>  'external',
          //       'locale' => 'ru_RU',
             //    'return_url' => $this->urlCallback,
-                "return_url"=> "yourapp://payment-return"
+                'return_url' => 'yourapp://payment-return',
             ],
             'capture' => true,
             'description' => "Покупка {$params['count']} подсказок",
