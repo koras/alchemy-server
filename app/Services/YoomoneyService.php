@@ -1,13 +1,22 @@
 <?php
 
 namespace App\Services;
+
 use YooKassa\Client;
 
 use YooKassa\Helpers\Random;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Exception\GuzzleException;
-
+use YooKassa\Common\Exceptions\ApiException;
+use YooKassa\Common\Exceptions\BadApiRequestException;
+use YooKassa\Common\Exceptions\ForbiddenException;
+use YooKassa\Common\Exceptions\InternalServerError;
+use YooKassa\Common\Exceptions\NotFoundException;
+use YooKassa\Common\Exceptions\ResponseProcessingException;
+use YooKassa\Common\Exceptions\TooManyRequestsException;
+use YooKassa\Common\Exceptions\UnauthorizedException;
 use Illuminate\Support\Facades\Log;
+use \YooKassa\Model\Payment\ConfirmationType;
 
 use App\Contracts\Services\YoomoneyServiceInterface;
 
@@ -18,25 +27,31 @@ class YoomoneyService implements YoomoneyServiceInterface
     const RETURN_URL = '/api/yoomoney/payments/callback';
     private $urlCallback;
     private $guzzleClient;
+
     /**
      * https://git.yoomoney.ru/projects/SDK/repos/yookassa-sdk-php/browse/README.md
      * https://git.yoomoney.ru/projects/SDK/repos/yookassa-android-sdk/browse
      * @param Client $client
      */
-    public function __construct(private Client $client)
+    public function __construct()
     {
         $this->shopId = config('yookassa.shop_id');
         $this->secretKey = config('yookassa.secret_key');
 
         $this->urlCallback = config('yookassa.shop_domain') . self::RETURN_URL;
-        $this->guzzleClient = new GuzzleClient([
-            'base_uri' => 'https://api.yookassa.ru/v3/',
-            'auth' => [$this->shopId, $this->secretKey],
-            'headers' => [
-                'Content-Type' => 'application/json',
-                'Idempotence-Key' => uniqid('key_', true),
-            ],
-        ]);
+
+        $this->client = new Client();
+        $this->client->setAuth($this->shopId, $this->secretKey);
+
+
+//        $this->guzzleClient = new GuzzleClient([
+//            'base_uri' => 'https://api.yookassa.ru/v3/',
+//            'auth' => [$this->shopId, $this->secretKey],
+//            'headers' => [
+//                'Content-Type' => 'application/json',
+//                'Idempotence-Key' => uniqid('key_', true),
+//            ],
+//        ]);
     }
 
     public function payment($params)
@@ -45,42 +60,80 @@ class YoomoneyService implements YoomoneyServiceInterface
             throw new \InvalidArgumentException('Payment token is required');
         }
 
+        $idempotenceKey = uniqid('', true);
         $paymentData = [
             'amount' => [
-                'value' => $params['amount'],
+                'value' => number_format($params['amount'], 2, '.', ''),
                 'currency' => 'RUB',
             ],
-       //     'payment_token' => $params['token'],
-            'payment_token' => Random::str(36),
+            'payment_token' => $params['token'],
+            //    'payment_token' => Random::str(36),
             'confirmation' => [
-                'type' => 'redirect',
-                'locale' => 'ru_RU',
-                'return_url' => $this->urlCallback,
+                // https://yookassa.ru/developers/payment-acceptance/getting-started/payment-process
+           //     'type' => 'redirect',
+                'type' => 'embedded',
+             //   'type' =>  'external',
+         //       'locale' => 'ru_RU',
+            //    'return_url' => $this->urlCallback,
             ],
             'capture' => true,
             'description' => "Покупка {$params['count']} подсказок",
             'metadata' => [
-                'user_id' => auth()->id(),
+                'user_id' => $params['user_id'],
                 'count' => $params['count'],
             ],
         ];
-    //    dd($paymentData );
         try {
-            $response = $this->guzzleClient->post('payments', [
-                'json' => $paymentData
+            $response = $this->client->createPayment($paymentData, $idempotenceKey);
+            Log::debug('YooKassa full response', [
+                'response' => $response->jsonSerialize(),
+                'payment_status' => $response->getStatus(),
+                'paymentData' => $paymentData
             ]);
 
-            $responseData = json_decode($response->getBody()->getContents(), true);
-
+            if (!$response->getConfirmation()) {
+                // Если нет confirmation, но платеж создан
+                if ($response->getStatus() === 'pending') {
+                    throw new \RuntimeException('Платеж создан, но требует дополнительного подтверждения');
+                }
+                throw new \RuntimeException('Некорректный ответ от ЮKassa: отсутствует confirmation');
+            }
             return [
                 'status' => 'success',
-                'confirmation_url' => $responseData['confirmation']['confirmation_url'],
-                'payment_id' => $responseData['id'],
+                'confirmation_url' => $response->getConfirmation()->getConfirmationUrl(),
+                'payment_id' => $response->getId(),
+                'payment_status' => $response->getStatus(),
             ];
 
-        } catch (GuzzleException $e) {
-            throw new \RuntimeException('YooKassa API error: ' . $e->getMessage());
+        } catch (BadApiRequestException $e) {
+            Log::error('YooKassa Bad Request: ' . $e->getMessage());
+            throw new \RuntimeException('Ошибка в запросе к ЮKassa: ' . $e->getMessage());
+        } catch (ForbiddenException $e) {
+            Log::error('YooKassa Forbidden: ' . $e->getMessage());
+            throw new \RuntimeException('Доступ запрещен: проверьте shopId и secretKey');
+        } catch (NotFoundException $e) {
+            Log::error('YooKassa Not Found: ' . $e->getMessage());
+            throw new \RuntimeException('Ресурс не найден');
+        } catch (ResponseProcessingException $e) {
+            Log::error('YooKassa Response Processing Error: ' . $e->getMessage());
+            throw new \RuntimeException('Ошибка обработки ответа от ЮKassa');
+        } catch (TooManyRequestsException $e) {
+            Log::error('YooKassa Too Many Requests: ' . $e->getMessage());
+            throw new \RuntimeException('Слишком много запросов к ЮKassa');
+        } catch (UnauthorizedException $e) {
+            Log::error('YooKassa Unauthorized: ' . $e->getMessage());
+            throw new \RuntimeException('Ошибка авторизации в ЮKassa');
+        } catch (InternalServerError $e) {
+            Log::error('YooKassa Internal Server Error: ' . $e->getMessage());
+            throw new \RuntimeException('Внутренняя ошибка сервера ЮKassa');
+        } catch (ApiException $e) {
+            Log::error('YooKassa API Error: ' . $e->getMessage());
+            throw new \RuntimeException('Ошибка API ЮKassa');
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in YooKassa payment: ' . $e->getMessage()  .'  '. $e->getCode());
+            throw new \RuntimeException('Неожиданная ошибка при обработке платежа');
         }
+
     }
 
     // Обработка возврата пользователя после оплаты
@@ -120,7 +173,7 @@ class YoomoneyService implements YoomoneyServiceInterface
     }
 
 
-    public function getPaymentInfo($paymentId)
+    public function getPaymentInfo($paymentId = 0)
     {
         Log::info('Payment callback error: ' . $paymentId);
         return [$paymentId];
