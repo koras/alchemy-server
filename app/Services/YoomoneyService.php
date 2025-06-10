@@ -94,19 +94,34 @@ class YoomoneyService implements YoomoneyServiceInterface
                 'paymentData' => $paymentData
             ]);
 
-            if (!$response->getConfirmation()) {
-                // Если нет confirmation, но платеж создан
-                if ($response->getStatus() === 'pending') {
-                    throw new \RuntimeException('Платеж создан, но требует дополнительного подтверждения');
-                }
-                throw new \RuntimeException('Некорректный ответ от ЮKassa: отсутствует confirmation');
+            $status = $response->getStatus();
+
+
+            if ($status === 'succeeded') {
+                return [
+                    'status'     => 'success',
+                    'payment_id' => $response->getId(),
+                ];
             }
+
+
+            if ($status === 'pending') {
+                $confirmation = $response->getConfirmation();
+                if (!$confirmation || !$confirmation->getConfirmationUrl()) {
+                    throw new \RuntimeException('Платеж ожидает подтверждения, но confirmation_url отсутствует');
+                }
+                return [
+                    'status'           => 'pending',
+                    'confirmation_url' => $confirmation->getConfirmationUrl(),
+                    'payment_id'       => $response->getId(),
+                ];
+            }
+
             return [
-                'status' => 'success',
-                'confirmation_url' => $response->getConfirmation()->getConfirmationUrl(),
-                'payment_id' => $response->getId(),
-                'payment_status' => $response->getStatus(),
+                'status'         => $status,
+                'payment_id'     => $response->getId(),
             ];
+
 
         } catch (BadApiRequestException $e) {
             Log::error('YooKassa Bad Request: ' . $e->getMessage());
