@@ -26,8 +26,6 @@ class AppEvent extends Model implements AppEventInterface
         'user_id',
         'event_type',
         'event_data',
-      //  'ip_address',
-     //   'device_info'
     ];
 
     /**
