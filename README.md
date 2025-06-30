@@ -19,3 +19,17 @@ https://www.google.com/imgres?q=yookassa%20api%20%D1%81%D1%85%D0%B5%D0%BC%D0%B0%
 
 
 https://yookassa.ru/developers/payment-acceptance/scenario-extensions/invoices/payments
+
+
+CREATE TABLE `feedback` (
+    `id` INT(10) NOT NULL AUTO_INCREMENT,
+    `level_id` INT(10) NULL DEFAULT NULL,
+    `user_id` INT(10) NULL DEFAULT NULL,
+    `email` VARCHAR(128) NULL DEFAULT NULL COLLATE 'utf16_bin',
+    `message` TEXT(32767) NULL DEFAULT NULL COLLATE 'utf16_bin',
+    `created_at` TIMESTAMP NULL DEFAULT NULL,
+    `updated_at` TIMESTAMP NULL DEFAULT NULL,
+    PRIMARY KEY (`id`) USING BTREE
+)
+    COLLATE='utf16_bin'
+    ENGINE=InnoDB;

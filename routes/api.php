@@ -2,11 +2,15 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\YoomoneyController;
+use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\EventController;
 
 Route::group(['prefix' => 'yoomoney'], function () {
 
     Route::get('redirect', [YoomoneyController::class, 'redirect']);
     Route::get('notification', [YoomoneyController::class, 'notification']);
+
+
 
 
 
@@ -23,3 +27,6 @@ Route::group(['prefix' => 'yoomoney'], function () {
     Route::any('payment/error', [YoomoneyController::class, 'paymentError'])->name('payment.error');
 
 });
+
+Route::post('feedback', [FeedbackController::class, 'feedback']);
+Route::post('event', [EventController::class, 'event']);
