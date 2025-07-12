@@ -18,10 +18,7 @@ class EventService implements EventServiceInterface
             'user_id' => $request->user_id,
             'event_type' => $request->event_type,
             'event_data' => $request->event_data,
-            //   'ip_address'=>$request->ip_address,
             'device_info' => $request->device_info,
         ]);
     }
-
-
 }
